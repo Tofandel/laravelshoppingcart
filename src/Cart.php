@@ -441,12 +441,12 @@ class Cart
                 $identifier = $identifier->getInstanceIdentifier();
             }
 
-            if (!$this->storedCartInstanceWithIdentifierExists($instance, $identifier)) {
-                return false;
-            }
-
             $stored = $this->getConnection()->table($this->getTableName())
                 ->where(['identifier' => $identifier, 'instance' => $instance])->first();
+
+            if (!$stored) {
+                return false;
+            }
 
             $storedContent = unserialize($stored->content);
 
