@@ -434,7 +434,7 @@ class Cart
     /**
      * Merges the contents of another cart into this cart.
      */
-    public function merge(string|InstanceIdentifier $identifier, bool $keepTax = false, bool $dispatchAdd = true, string $instance = null): bool
+    public function merge(string|InstanceIdentifier $identifier, bool $keepTax = true, bool $dispatchAdd = true, string $instance = null): bool
     {
         return $this->usingInstance($instance, function ($instance) use ($identifier, $keepTax, $dispatchAdd) {
             if ($identifier instanceof InstanceIdentifier) {
@@ -463,10 +463,10 @@ class Cart
     /**
      * Add an item to the cart.
      */
-    public function addCartItem(CartItem $item, bool $keepTax = false, bool $dispatchEvent = true): CartItem
+    public function addCartItem(CartItem $item, bool $keepTax = true, bool $dispatchEvent = true): CartItem
     {
         if (!$keepTax) {
-            $item->setTaxRate($this->taxRate);
+            $item->setTaxRate(config('cart.tax'));
         }
 
         $content = $this->getContent();
