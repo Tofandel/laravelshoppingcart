@@ -40,7 +40,7 @@ class Cart
      *
      * @var string
      */
-    private $instance;
+    private string $instance;
 
     /**
      * Holds the extra additional costs on the cart
@@ -70,11 +70,11 @@ class Cart
      * @param string|null $instance
      * @return Cart
      */
-    public function instance($instance = null)
+    public function instance(string $instance = null)
     {
         $instance = $instance ?: self::DEFAULT_INSTANCE;
 
-        $this->instance = sprintf('%s.%s', 'cart', $instance);
+        $this->instance = 'cart.' . $instance;
 
         return $this;
     }
@@ -84,9 +84,9 @@ class Cart
      *
      * @return string
      */
-    public function currentInstance()
+    public function currentInstance(): string
     {
-        return str_replace('cart.', '', $this->instance);
+        return \Str::after($this->instance, 'cart.');
     }
 
     /**
@@ -161,7 +161,7 @@ class Cart
      * @param mixed  $qty
      * @return CartItem
      */
-    public function update($rowId, $qty)
+    public function update(string $rowId, array|int|Buyable $qty): CartItem
     {
         $cartItem = $this->get($rowId);
 
@@ -204,7 +204,7 @@ class Cart
      * @param string $rowId
      * @return void
      */
-    public function remove($rowId)
+    public function remove(string $rowId)
     {
         $cartItem = $this->get($rowId);
 
@@ -223,7 +223,7 @@ class Cart
      * @param string $rowId
      * @return CartItem
      */
-    public function get($rowId)
+    public function get(string $rowId)
     {
         $content = $this->getContent();
 
@@ -248,13 +248,14 @@ class Cart
      *
      * @return Collection
      */
-    public function content()
+    public function content(string $instance = null)
     {
-        if (is_null($this->session->get($this->instance))) {
+        $instance ?= $this->insance;
+        if (is_null($this->session->get($instance))) {
             return new Collection();
         }
 
-        return $this->session->get($this->instance);
+        return $this->session->get($instance);
     }
 
     /**
@@ -262,9 +263,9 @@ class Cart
      *
      * @return int|float
      */
-    public function count()
+    public function count(string $instance = null)
     {
-        $content = $this->getContent();
+        $content = $this->getContent($instance);
 
         return $content->sum('qty');
     }
@@ -277,9 +278,9 @@ class Cart
      * @param string $thousandSeparator
      * @return string
      */
-    public function total()
+    public function total(string $instance = null)
     {
-        $content = $this->getContent();
+        $content = $this->getContent($instance);
 
         $total = $content->reduce(function ($total, CartItem $cartItem) {
             return $total + ($cartItem->qty * $cartItem->priceTax);
@@ -352,7 +353,7 @@ class Cart
      * @param mixed  $model
      * @return void
      */
-    public function associate($rowId, $model)
+    public function associate(string $rowId, $model)
     {
         if(is_string($model) && ! class_exists($model)) {
             throw new UnknownModelException("The supplied model {$model} does not exist.");
@@ -395,7 +396,7 @@ class Cart
      * @param mixed $identifier
      * @return void
      */
-    public function store($identifier)
+    public function store(string|InstanceIdentifier $identifier)
     {
         $content = $this->getContent();
 
@@ -426,7 +427,7 @@ class Cart
      *
      * @return bool
      */
-    private function storedCartInstanceWithIdentifierExists($instance, $identifier)
+    private function storedCartInstanceWithIdentifierExists(string $instance, string $identifier)
     {
         return $this->getConnection()->table($this->getTableName())->where(['identifier' => $identifier, 'instance'=> $instance])->exists();
     }
@@ -438,7 +439,7 @@ class Cart
      * @param mixed $identifier
      * @return void
      */
-    public function restore($identifier)
+    public function restore(string|InstanceIdentifier $identifier)
     {
         if ($identifier instanceof InstanceIdentifier) {
             $identifier = $identifier->getInstanceIdentifier();
@@ -455,9 +456,7 @@ class Cart
 
         $storedContent = unserialize(data_get($stored, 'content'));
 
-        $this->instance(data_get($stored, 'instance'));
-
-        $content = $this->getContent();
+        $content = $this->getContent($stored->instance);
 
         foreach ($storedContent as $cartItem) {
             $content->put($cartItem->rowId, $cartItem);
@@ -467,13 +466,20 @@ class Cart
 
         $this->session->put($this->instance, $content);
 
-        $this->instance($currentInstance);
-
         $this->createdAt = Carbon::parse(data_get($stored, 'created_at'));
         $this->updatedAt = Carbon::parse(data_get($stored, 'updated_at'));
 
-        $this->getConnection()->table($this->getTableName())->where(['identifier' => $identifier, 'instance' => $currentInstance])->delete();
+        $this->delete($identifier);
+    }
 
+    public function delete(string|InstanceIdentifier $identifier) {
+        if ($identifier instanceof InstanceIdentifier) {
+            $identifier = $identifier->getInstanceIdentifier();
+        }
+
+        $currentInstance = $this->currentInstance();
+        
+        $this->getConnection()->table($this->getTableName())->where(['identifier' => $identifier, 'instance' => $currentInstance])->delete();
     }
 
     /**
@@ -486,8 +492,10 @@ class Cart
      *
      * @return bool
      */
-    public function merge($identifier, $keepTax = false, $dispatchAdd = true, $instance = self::DEFAULT_INSTANCE)
+    public function merge($identifier, $keepTax = false, $dispatchAdd = true, string $instance = null)
     {
+        $instance ?= $this->instance;
+        
         if (!$this->storedCartInstanceWithIdentifierExists($instance, $identifier)) {
             return false;
         }
@@ -674,7 +682,7 @@ class Cart
      * @param $thousandSeparator
      * @return string
      */
-    private function numberFormat($value)
+    private function numberFormat($value): string
     {
         $decimals = is_null(config('cart.format.decimals')) ? 2 : config('cart.format.decimals');
         $decimalPoint = is_null(config('cart.format.decimal_point')) ? '.' : config('cart.format.decimal_point');
