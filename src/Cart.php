@@ -355,7 +355,10 @@ class Cart
     public function store(string|InstanceIdentifier $identifier): void
     {
         $content = $this->getContent();
-
+        if ($content->isEmpty()) {
+            $this->delete($identifier);
+            return;
+        }
         if ($identifier instanceof InstanceIdentifier) {
             $identifier = $identifier->getInstanceIdentifier();
         }
