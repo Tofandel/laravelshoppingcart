@@ -2,6 +2,7 @@
 
 namespace Gloudemans\Tests\Shoppingcart;
 
+use Gloudemans\Shoppingcart\Exceptions\UnknownModelException;
 use Mockery;
 use PHPUnit\Framework\Assert;
 use Gloudemans\Shoppingcart\Cart;
@@ -15,6 +16,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Gloudemans\Shoppingcart\ShoppingcartServiceProvider;
 use Gloudemans\Tests\Shoppingcart\Fixtures\ProductModel;
 use Gloudemans\Tests\Shoppingcart\Fixtures\BuyableProduct;
+use TypeError;
 
 class CartTest extends TestCase
 {
@@ -56,7 +58,7 @@ class CartTest extends TestCase
      *
      * @return void
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -80,10 +82,12 @@ class CartTest extends TestCase
 
         $cart->add(new BuyableProduct(1, 'First item'));
 
-        $cart->instance('wishlist')->add(new BuyableProduct(2, 'Second item'));
+        $wishlist = $cart->getInstance('wishlist');
+        $default = $cart->getInstance(Cart::DEFAULT_INSTANCE);
+        $wishlist->add(new BuyableProduct(2, 'Second item'));
 
-        $this->assertItemsInCart(1, $cart->instance(Cart::DEFAULT_INSTANCE));
-        $this->assertItemsInCart(1, $cart->instance('wishlist'));
+        $this->assertItemsInCart(1, $wishlist);
+        $this->assertItemsInCart(1, $default);
     }
     
     /** @test */
@@ -212,11 +216,10 @@ class CartTest extends TestCase
 
     /**
      * @test
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage Please supply a valid identifier.
      */
     public function it_will_validate_the_identifier()
     {
+        $this->expectException(TypeError::class);
         $cart = $this->getCart();
 
         $cart->add(null, 'Some title', 1, 10.00);
@@ -224,11 +227,10 @@ class CartTest extends TestCase
 
     /**
      * @test
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage Please supply a valid name.
      */
     public function it_will_validate_the_name()
     {
+        $this->expectException(TypeError::class);
         $cart = $this->getCart();
 
         $cart->add(1, null, 1, 10.00);
@@ -236,11 +238,10 @@ class CartTest extends TestCase
 
     /**
      * @test
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage Please supply a valid quantity.
      */
     public function it_will_validate_the_quantity()
     {
+        $this->expectException(\TypeError::class);
         $cart = $this->getCart();
 
         $cart->add(1, 'Some title', 'invalid', 10.00);
@@ -248,11 +249,10 @@ class CartTest extends TestCase
 
     /**
      * @test
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage Please supply a valid price.
      */
     public function it_will_validate_the_price()
     {
+        $this->expectException(\TypeError::class);
         $cart = $this->getCart();
 
         $cart->add(1, 'Some title', 1, 'invalid');
@@ -340,10 +340,10 @@ class CartTest extends TestCase
 
     /**
      * @test
-     * @expectedException \Gloudemans\Shoppingcart\Exceptions\InvalidRowIDException
      */
     public function it_will_throw_an_exception_if_a_rowid_was_not_found()
     {
+        $this->expectException(\Gloudemans\Shoppingcart\Exceptions\InvalidRowIDException::class);
         $cart = $this->getCart();
 
         $cart->add(new BuyableProduct);
@@ -601,7 +601,7 @@ class CartTest extends TestCase
 
         $cartItem = $cart->get('027c91341fd5cf4d2579b49c4b6a90da');
 
-        $this->assertContains(BuyableProduct::class, Assert::readAttribute($cartItem, 'associatedModel'));
+        $this->assertEquals(BuyableProduct::class, $cartItem->associatedModel);
     }
 
     /** @test */
@@ -615,16 +615,16 @@ class CartTest extends TestCase
 
         $cartItem = $cart->get('027c91341fd5cf4d2579b49c4b6a90da');
 
-        $this->assertEquals(ProductModel::class, Assert::readAttribute($cartItem, 'associatedModel'));
+        $this->assertEquals(ProductModel::class, $cartItem->associatedModel);
     }
 
     /**
      * @test
-     * @expectedException \Gloudemans\Shoppingcart\Exceptions\UnknownModelException
-     * @expectedExceptionMessage The supplied model SomeModel does not exist.
      */
     public function it_will_throw_an_exception_when_a_non_existing_model_is_being_associated()
     {
+        $this->expectExceptionMessage("The supplied model SomeModel does not exist.");
+        $this->expectException(UnknownModelException::class);
         $cart = $this->getCart();
 
         $cart->add(1, 'Test item', 1, 10.00);
@@ -728,7 +728,7 @@ class CartTest extends TestCase
         $cart->add(new BuyableProduct(1, 'Some title', 1000.00), 1);
         $cart->add(new BuyableProduct(2, 'Some title', 2000.00), 2);
 
-        $this->assertEquals('1.050,00', $cart->tax(2, ',', '.'));
+        $this->assertEquals('1.050,00', $cart->tax());
     }
 
     /** @test */
@@ -890,16 +890,16 @@ class CartTest extends TestCase
 
         $cart->setTax('027c91341fd5cf4d2579b49c4b6a90da', 19);
 
-        $this->assertEquals(10.00, $cartItem->price(2));
-        $this->assertEquals(11.90, $cartItem->priceTax(2));
-        $this->assertEquals(20.00, $cartItem->subtotal(2));
-        $this->assertEquals(23.80, $cartItem->total(2));
-        $this->assertEquals(1.90, $cartItem->tax(2));
-        $this->assertEquals(3.80, $cartItem->taxTotal(2));
+        $this->assertEquals(10.00, $cartItem->price());
+        $this->assertEquals(11.90, $cartItem->priceTax());
+        $this->assertEquals(20.00, $cartItem->subtotal());
+        $this->assertEquals(23.80, $cartItem->total());
+        $this->assertEquals(1.90, $cartItem->tax());
+        $this->assertEquals(3.80, $cartItem->taxTotal());
 
-        $this->assertEquals(20.00, $cart->subtotal(2));
-        $this->assertEquals(23.80, $cart->total(2));
-        $this->assertEquals(3.80, $cart->tax(2));
+        $this->assertEquals(20.00, $cart->subtotal());
+        $this->assertEquals(23.80, $cart->total());
+        $this->assertEquals(3.80, $cart->tax());
     }
 
     /** @test */
@@ -913,7 +913,7 @@ class CartTest extends TestCase
 
         $user = Mockery::mock(Authenticatable::class);
 
-        event(new Logout($user));
+        event(new Logout('auth', $user));
     }
 
     /**

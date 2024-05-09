@@ -8,6 +8,10 @@ use Illuminate\Contracts\Support\Jsonable;
 
 use Illuminate\Support\Arr;
 
+/**
+ * @property-read float $tax
+ * @property-read float $taxTotal
+ */
 class CartItem implements Arrayable, Jsonable
 {
     /**
@@ -15,14 +19,7 @@ class CartItem implements Arrayable, Jsonable
      *
      * @var string
      */
-    public $rowId;
-
-    /**
-     * The ID of the cart item.
-     *
-     * @var int|string
-     */
-    public $id;
+    public string $rowId;
 
     /**
      * The quantity for this cart item.
@@ -31,19 +28,6 @@ class CartItem implements Arrayable, Jsonable
      */
     public $qty;
 
-    /**
-     * The name of the cart item.
-     *
-     * @var string
-     */
-    public $name;
-
-    /**
-     * The price without TAX of the cart item.
-     *
-     * @var float
-     */
-    public $price;
 
     /**
      * The options for this cart item.
@@ -61,10 +45,8 @@ class CartItem implements Arrayable, Jsonable
 
     /**
      * The tax rate for the cart item.
-     *
-     * @var int|float
      */
-    private $taxRate = 0;
+    private float $taxRate = 0;
 
     /**
      * CartItem constructor.
@@ -74,103 +56,71 @@ class CartItem implements Arrayable, Jsonable
      * @param float      $price
      * @param array      $options
      */
-    public function __construct($id, $name, $price, array $options = [])
+    public function __construct(
+        public string|int $id,
+        public string $name,
+        public float $price,
+        array $options = [])
     {
-        if(empty($id)) {
+        if(empty($this->id)) {
             throw new \InvalidArgumentException('Please supply a valid identifier.');
         }
-        if(empty($name)) {
+        if(empty($this->name)) {
             throw new \InvalidArgumentException('Please supply a valid name.');
         }
-        if(strlen($price) < 0 || ! is_numeric($price)) {
-            throw new \InvalidArgumentException('Please supply a valid price.');
-        }
 
-        $this->id       = $id;
-        $this->name     = $name;
-        $this->price    = floatval($price);
         $this->options  = new CartItemOptions($options);
-        $this->rowId = $this->generateRowId($id, $options);
+        $this->rowId = $this->generateRowId();
     }
 
     /**
      * Returns the formatted price without TAX.
-     *
-     * @param int    $decimals
-     * @param string $decimalPoint
-     * @param string $thousandSeparator
-     * @return string
      */
-    public function price()
+    public function price(): float
     {
-        return $this->numberFormat($this->price);
+        return $this->price;
     }
 
     /**
      * Returns the formatted price with TAX.
-     *
-     * @param int    $decimals
-     * @param string $decimalPoint
-     * @param string $thousandSeparator
-     * @return string
      */
-    public function priceTax()
+    public function priceTax(): float
     {
-        return $this->numberFormat($this->priceTax);
+        return $this->priceTax;
     }
 
     /**
      * Returns the formatted subtotal.
      * Subtotal is price for whole CartItem without TAX
-     *
-     * @param int    $decimals
-     * @param string $decimalPoint
-     * @param string $thousandSeparator
-     * @return string
      */
-    public function subtotal()
+    public function subtotal(): float
     {
-        return $this->numberFormat($this->subtotal);
+        return $this->subtotal;
     }
 
     /**
      * Returns the formatted total.
      * Total is price for whole CartItem with TAX
-     *
-     * @param int    $decimals
-     * @param string $decimalPoint
-     * @param string $thousandSeparator
-     * @return string
      */
-    public function total()
+    public function total(): float
     {
-        return $this->numberFormat($this->total);
+        return $this->total;
     }
 
     /**
      * Returns the formatted tax.
-     *
-     * @param int    $decimals
-     * @param string $decimalPoint
-     * @param string $thousandSeparator
-     * @return string
      */
-    public function tax()
+    public function tax(): float
     {
-        return $this->numberFormat($this->tax);
+        return $this->tax;
     }
 
     /**
      * Returns the formatted tax.
-     *
-     * @param int    $decimals
-     * @param string $decimalPoint
-     * @param string $thousandSeparator
-     * @return string
      */
-    public function taxTotal()
+    public function taxTotal(): float
     {
-        return $this->numberFormat($this->taxTotal);
+        return $this->taxTotal;
     }
 
     /**
@@ -178,11 +128,8 @@ class CartItem implements Arrayable, Jsonable
      *
      * @param int|float $qty
      */
-    public function setQuantity($qty)
+    public function setQuantity(int|float $qty): void
     {
-        if(empty($qty) || ! is_numeric($qty))
-            throw new \InvalidArgumentException('Please supply a valid quantity.');
-
         $this->qty = $qty;
     }
 
@@ -215,7 +162,7 @@ class CartItem implements Arrayable, Jsonable
         $this->priceTax = $this->price + $this->tax;
         $this->options  = new CartItemOptions(Arr::get($attributes, 'options', $this->options));
 
-        $this->rowId = $this->generateRowId($this->id, $this->options->all());
+        $this->rowId = $this->generateRowId();
     }
 
     /**
@@ -256,6 +203,7 @@ class CartItem implements Arrayable, Jsonable
             return $this->{$attribute};
         }
 
+        // TODO this is an absolute mess
         if($attribute === 'priceTax') {
             return number_format($this->price + $this->tax, 2, '.', '');
         }
@@ -325,23 +273,18 @@ class CartItem implements Arrayable, Jsonable
     /**
      * Generate a unique id for the cart item.
      *
-     * @param string $id
-     * @param array  $options
      * @return string
      */
-    protected function generateRowId($id, array $options)
+    protected function generateRowId(): string
     {
-        ksort($options);
 
-        return md5($id . serialize($options));
+        return md5($this->id . serialize($this->options->sortKeys()->all()));
     }
 
     /**
      * Get the instance as an array.
-     *
-     * @return array
      */
-    public function toArray()
+    public function toArray(): array
     {
         return [
             'rowId'    => $this->rowId,
@@ -370,9 +313,6 @@ class CartItem implements Arrayable, Jsonable
      * Get the formatted number.
      *
      * @param float  $value
-     * @param int    $decimals
-     * @param string $decimalPoint
-     * @param string $thousandSeparator
      * @return string
      */
     private function numberFormat($value)
