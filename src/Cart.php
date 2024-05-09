@@ -515,7 +515,7 @@ class Cart
      */
     protected function getContent(string $instance = null): Collection
     {
-        return $this->usingInstance($instance, function ($instance) {
+        return $this->usingInstance($instance, function ($_, $instance) {
             return $this->session->has($instance)
                 ? $this->session->get($instance)
                 : new Collection;
@@ -528,7 +528,7 @@ class Cart
         if ($instance) {
             $this->instance($instance);
         }
-        return tap(call_user_func($callable, $this->instance), fn() => $this->instance = $oldInstance);
+        return tap(call_user_func($callable, $this->currentInstance(), $this->instance), fn() => $this->instance = $oldInstance);
     }
 
     /**
