@@ -220,7 +220,7 @@ class CartItem implements Arrayable, Jsonable
         }
 
         if($attribute === 'model' && isset($this->associatedModel)) {
-            return with(new $this->associatedModel)->find($this->id);
+            return ($this->associatedModel)::withoutGlobalScopes()->find($this->id);
         }
 
         return null;
