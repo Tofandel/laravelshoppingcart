@@ -48,6 +48,8 @@ class CartItem implements Arrayable, Jsonable
      */
     private float $taxRate = 0;
 
+    private mixed $_model = null;
+
     /**
      * CartItem constructor.
      */
@@ -220,7 +222,10 @@ class CartItem implements Arrayable, Jsonable
         }
 
         if($attribute === 'model' && isset($this->associatedModel)) {
-            return ($this->associatedModel)::withoutGlobalScopes()->find($this->id);
+            if (!isset($this->_model) {
+                $this->_model = ($this->associatedModel)::withoutGlobalScopes()->find($this->id) ?? false;
+            }
+            return $this->_model;
         }
 
         return null;
