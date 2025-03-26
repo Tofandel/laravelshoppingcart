@@ -307,9 +307,9 @@ class CartItem implements Arrayable, Jsonable
             'price'    => $this->price,
             'options'  => $this->options->toArray(),
             'taxRate'  => $this->taxRate,
-            'class' => method_exists(Relation::class, 'getMorphAlias') ?
+            'class' => $this->associatedModel ? (method_exists(Relation::class, 'getMorphAlias') ?
                 Relation::getMorphAlias($this->associatedModel)
-                : (array_search($this->associatedModel, Relation::morphMap(), true) ?: $this->associatedModel),
+                : (array_search($this->associatedModel, Relation::morphMap(), true) ?: $this->associatedModel)) : null,
         ] + ($minimal ? [] : ['rowId' => $this->rowId, 'tax' => $this->tax, 'subtotal' => $this->subtotal]);
     }
 
