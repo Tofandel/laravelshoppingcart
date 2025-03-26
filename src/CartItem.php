@@ -159,14 +159,20 @@ class CartItem implements Arrayable, Jsonable
         $this->qty      = Arr::get($attributes, 'qty', $this->qty ?? 1);
         $this->name     = Arr::get($attributes, 'name', $this->name ?? null);
         $this->price    = Arr::get($attributes, 'price', $this->price ?? null);
-        $this->taxRate  = Arr::get($attributes, 'taxRate', $this->taxRate ?? config('cart.tax'));
+
+        if (isset($attributes["\x00Gloudemans\Shoppingcart\CartItem\x00taxRate"])) {
+            $this->taxRate = $attributes["\x00Gloudemans\Shoppingcart\CartItem\x00taxRate"];
+        } else {
+            $this->taxRate  = Arr::get($attributes, 'taxRate', $this->taxRate ?? config('cart.tax'));
+        }
+
         if (isset($attributes['options']) || !isset($this->options)) {
             $this->options = new CartItemOptions(Arr::get($attributes, 'options', []));
         }
         if (isset($attributes['class'])) {
             $this->associatedModel = Relation::getMorphedModel($attributes['class']) ?? $attributes['class'];
-        } else if (isset($attributes['associatedModel'])) {
-            $this->associatedModel = $attributes['associatedModel'];
+        } else if (isset($attributes["\x00Gloudemans\Shoppingcart\CartItem\x00associatedModel"])) {
+            $this->associatedModel = $attributes["\x00Gloudemans\Shoppingcart\CartItem\x00associatedModel"];
         }
 
         $this->rowId = $this->generateRowId();
@@ -301,16 +307,16 @@ class CartItem implements Arrayable, Jsonable
     public function toArray($minimal = false): array
     {
         return [
-            'id'       => $this->id,
-            'name'     => $this->name,
-            'qty'      => $this->qty,
-            'price'    => $this->price,
-            'options'  => $this->options->toArray(),
-            'taxRate'  => $this->taxRate,
-            'class' => $this->associatedModel ? (method_exists(Relation::class, 'getMorphAlias') ?
-                Relation::getMorphAlias($this->associatedModel)
-                : (array_search($this->associatedModel, Relation::morphMap(), true) ?: $this->associatedModel)) : null,
-        ] + ($minimal ? [] : ['rowId' => $this->rowId, 'tax' => $this->tax, 'subtotal' => $this->subtotal]);
+                'id'       => $this->id,
+                'name'     => $this->name,
+                'qty'      => $this->qty,
+                'price'    => $this->price,
+                'options'  => $this->options->toArray(),
+                'taxRate'  => $this->taxRate,
+                'class' => $this->associatedModel ? (method_exists(Relation::class, 'getMorphAlias') ?
+                    Relation::getMorphAlias($this->associatedModel)
+                    : (array_search($this->associatedModel, Relation::morphMap(), true) ?: $this->associatedModel)) : null,
+            ] + ($minimal ? [] : ['rowId' => $this->rowId, 'tax' => $this->tax, 'subtotal' => $this->subtotal]);
     }
 
     /**
