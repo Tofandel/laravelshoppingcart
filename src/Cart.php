@@ -455,6 +455,9 @@ class Cart
             $storedContent = unserialize($stored->content);
 
             foreach ($storedContent as $cartItem) {
+                if (!$cartItem instanceof CartItem) {
+                    $cartItem = CartItem::fromArray($cartItem);
+                }
                 $this->addCartItem($cartItem, $keepTax, $dispatchAdd);
             }
 
