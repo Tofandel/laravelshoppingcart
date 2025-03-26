@@ -6,6 +6,7 @@ use Illuminate\Contracts\Support\Arrayable;
 use Gloudemans\Shoppingcart\Contracts\Buyable;
 use Illuminate\Contracts\Support\Jsonable;
 
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
 
 /**
@@ -46,7 +47,7 @@ class CartItem implements Arrayable, Jsonable
     /**
      * The tax rate for the cart item.
      */
-    private float $taxRate = 0;
+    private float $taxRate;
 
     private mixed $_model = null;
 
@@ -67,6 +68,7 @@ class CartItem implements Arrayable, Jsonable
         }
 
         $this->options  = new CartItemOptions($options);
+        $this->taxRate = config('cart.tax');
         $this->rowId = $this->generateRowId();
     }
 
@@ -141,7 +143,8 @@ class CartItem implements Arrayable, Jsonable
         $this->id       = $item->getBuyableIdentifier($this->options);
         $this->name     = $item->getBuyableDescription($this->options);
         $this->price    = $item->getBuyablePrice($this->options);
-        $this->priceTax = $this->price + $this->tax;
+
+        $this->rowId = $this->generateRowId();
     }
 
     /**
@@ -150,14 +153,19 @@ class CartItem implements Arrayable, Jsonable
      * @param array $attributes
      * @return void
      */
-    public function updateFromArray(array $attributes)
+    public function updateFromArray(array $attributes): void
     {
-        $this->id       = Arr::get($attributes, 'id', $this->id);
-        $this->qty      = Arr::get($attributes, 'qty', $this->qty);
-        $this->name     = Arr::get($attributes, 'name', $this->name);
-        $this->price    = Arr::get($attributes, 'price', $this->price);
-        $this->priceTax = $this->price + $this->tax;
-        $this->options  = new CartItemOptions(Arr::get($attributes, 'options', $this->options));
+        $this->id       = Arr::get($attributes, 'id', $this->id ?? null);
+        $this->qty      = Arr::get($attributes, 'qty', $this->qty ?? 1);
+        $this->name     = Arr::get($attributes, 'name', $this->name ?? null);
+        $this->price    = Arr::get($attributes, 'price', $this->price ?? null);
+        $this->taxRate  = Arr::get($attributes, 'taxRate', $this->taxRate ?? config('cart.tax'));
+        if (isset($attributes['options']) || !isset($this->options)) {
+            $this->options = new CartItemOptions(Arr::get($attributes, 'options', []));
+        }
+        if (isset($attributes['class'])) {
+            $this->associatedModel = Relation::getMorphedModel($attributes['class']) ?? $attributes['class'];
+        }
 
         $this->rowId = $this->generateRowId();
     }
@@ -171,6 +179,9 @@ class CartItem implements Arrayable, Jsonable
     public function associate($model)
     {
         $this->associatedModel = is_string($model) ? $model : get_class($model);
+        if (!is_string($model)) {
+            $this->_model = $model;
+        }
 
         return $this;
     }
@@ -202,23 +213,23 @@ class CartItem implements Arrayable, Jsonable
 
         // TODO this is an absolute mess
         if($attribute === 'priceTax') {
-            return number_format($this->price + $this->tax, 2, '.', '');
+            return $this->price + $this->tax;
         }
 
         if($attribute === 'subtotal') {
-            return number_format($this->qty * $this->price, 2, '.', '');
+            return $this->qty * $this->price;
         }
 
         if($attribute === 'total') {
-            return number_format($this->qty * $this->priceTax, 2, '.', '');
+            return $this->qty * $this->priceTax;
         }
 
         if($attribute === 'tax') {
-            return number_format($this->price * ($this->taxRate / 100), 2, '.', '');
+            return $this->price * ($this->taxRate / 100);
         }
 
         if($attribute === 'taxTotal') {
-            return number_format($this->tax * $this->qty, 2, '.', '');
+            return $this->tax * $this->qty;
         }
 
         if($attribute === 'model' && isset($this->associatedModel)) {
@@ -251,9 +262,11 @@ class CartItem implements Arrayable, Jsonable
      */
     public static function fromArray(array $attributes)
     {
-        $options = Arr::get($attributes, 'options', []);
+        $res = new self($attributes['id'], $attributes['name'], $attributes['price'], $attributes['options'] ?? []);
 
-        return new self($attributes['id'], $attributes['name'], $attributes['price'], $options);
+        $res->updateFromArray($attributes);
+
+        return $res;
     }
 
     /**
@@ -277,25 +290,25 @@ class CartItem implements Arrayable, Jsonable
      */
     protected function generateRowId(): string
     {
-
-        return md5($this->id . serialize($this->options->sortKeys()->all()));
+        return md5($this->id . serialize($this->options->sortKeys()->toArray()) . '|' . $this->price . '|' . $this->taxRate);
     }
 
     /**
      * Get the instance as an array.
      */
-    public function toArray(): array
+    public function toArray($minimal = false): array
     {
         return [
-            'rowId'    => $this->rowId,
             'id'       => $this->id,
             'name'     => $this->name,
             'qty'      => $this->qty,
             'price'    => $this->price,
             'options'  => $this->options->toArray(),
-            'tax'      => $this->tax,
-            'subtotal' => $this->subtotal
-        ];
+            'taxRate'  => $this->taxRate,
+            'class' => method_exists(Relation::class, 'getMorphAlias') ?
+                Relation::getMorphAlias($this->associatedModel)
+                : (array_search($this->associatedModel, Relation::morphMap(), true) ?: $this->associatedModel),
+        ] + ($minimal ? [] : ['rowId' => $this->rowId, 'tax' => $this->tax, 'subtotal' => $this->subtotal]);
     }
 
     /**
@@ -322,5 +335,15 @@ class CartItem implements Arrayable, Jsonable
         $thousandSeparator = '';
 
         return number_format($value, $decimals, $decimalPoint, $thousandSeparator);
+    }
+
+    public function __serialize(): array
+    {
+        return $this->toArray();
+    }
+
+    public function __unserialize(array $data): void
+    {
+        $this->updateFromArray($data);
     }
 }

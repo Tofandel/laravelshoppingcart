@@ -4,6 +4,7 @@ namespace Gloudemans\Shoppingcart;
 
 use Carbon\Carbon;
 use Gloudemans\Shoppingcart\Contracts\InstanceIdentifier;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Collection;
 use Illuminate\Session\SessionManager;
@@ -206,7 +207,7 @@ class Cart
         $content = $this->getContent();
 
         if (!$content->has($rowId))
-            throw new InvalidRowIDException("The cart does not contain rowId {$rowId}.");
+            throw new InvalidRowIDException("The cart does not contain rowId {$rowId}." . (app()->runningUnitTests() ? " Contains: " . $content->keys()->join(', ') : ''));
 
         return $content->get($rowId);
     }
@@ -369,7 +370,7 @@ class Cart
             'identifier' => $identifier,
             'instance' => $instance,
         ], [
-            'content' => serialize($content),
+            'content' => serialize($content->map(fn ($value) => $value instanceof Arrayable ? $value->toArray(true) : $value)->all()),
             'created_at' => $this->createdAt ?? Carbon::now(),
             'updated_at' => $this->updatedAt ?? Carbon::now(),
         ]);
@@ -407,6 +408,9 @@ class Cart
         $content = $this->getContent($stored->instance);
 
         foreach ($storedContent as $cartItem) {
+            if (!$cartItem instanceof CartItem) {
+                $cartItem = CartItem::fromArray($cartItem);
+            }
             $content->put($cartItem->rowId, $cartItem);
         }
 
@@ -548,8 +552,6 @@ class Cart
             $cartItem->setQuantity($qty);
         }
 
-        $cartItem->setTaxRate(config('cart.tax'));
-
         return $cartItem;
     }
 
@@ -602,11 +604,11 @@ class Cart
     /**
      * Get the formatted number
      */
-    private function numberFormat(int|float $value): string
+    public function numberFormat(int|float $value, int $decimals = null, string $decimalPoint = null, string $thousandSeparator = null): string
     {
-        $decimals = config('cart.format.decimals', 2);
-        $decimalPoint = config('cart.format.decimal_point', '.');
-        $thousandSeparator = '';
+        $decimals ??= config('cart.format.decimals', 2);
+        $decimalPoint ??= config('cart.format.decimal_point', '.');
+        $thousandSeparator ??= config('cart.format.thousand_separator', '');
 
         return number_format($value, $decimals, $decimalPoint, $thousandSeparator);
     }
