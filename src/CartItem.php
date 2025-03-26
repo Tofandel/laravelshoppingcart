@@ -165,6 +165,8 @@ class CartItem implements Arrayable, Jsonable
         }
         if (isset($attributes['class'])) {
             $this->associatedModel = Relation::getMorphedModel($attributes['class']) ?? $attributes['class'];
+        } else if (isset($attributes['associatedModel'])) {
+            $this->associatedModel = $attributes['associatedModel'];
         }
 
         $this->rowId = $this->generateRowId();
